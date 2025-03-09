@@ -1,10 +1,5 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import {
-  getMentorById,
-  getMentorAvailability,
-  requestSession,
-} from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { User, Availability } from "@/types";
 
@@ -56,11 +51,80 @@ export function MentorProfile() {
   const fetchMentorData = async (id: string) => {
     try {
       setIsLoading(true);
-      const mentorData = await getMentorById(id);
-      const availabilityData = await getMentorAvailability(id);
 
-      setMentor(mentorData);
-      setAvailabilities(availabilityData.filter((slot) => !slot.isBooked));
+      // Mock mentor data
+      const mockMentors = {
+        "mentor-1": {
+          id: "mentor-1",
+          email: "john@example.com",
+          name: "John Smith",
+          role: "mentor",
+          avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=john",
+          bio: "Senior software engineer with 10+ years of experience in web development, cloud architecture, and team leadership. I specialize in React, Node.js, and AWS. I've helped dozens of developers advance their careers and technical skills through personalized mentoring sessions.",
+          domains: ["Software Development", "Leadership", "Career Development"],
+          hourlyRate: 75,
+        },
+        "mentor-2": {
+          id: "mentor-2",
+          email: "sarah@example.com",
+          name: "Sarah Johnson",
+          role: "mentor",
+          avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=sarah",
+          bio: "Data scientist specializing in machine learning and AI applications. Former research lead at Google. I help aspiring data scientists master Python, TensorFlow, and data visualization techniques. My mentees have gone on to roles at top tech companies.",
+          domains: ["Data Science", "Software Development"],
+          hourlyRate: 90,
+        },
+        "mentor-3": {
+          id: "mentor-3",
+          email: "michael@example.com",
+          name: "Michael Chen",
+          role: "mentor",
+          avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=michael",
+          bio: "Product manager with experience at startups and Fortune 500 companies. Passionate about user-centered design. I can help you build your product management skills, create compelling product roadmaps, and develop effective stakeholder management strategies.",
+          domains: ["Product Management", "UX/UI Design", "Business Strategy"],
+          hourlyRate: 65,
+        },
+        "mentor-4": {
+          id: "mentor-4",
+          email: "lisa@example.com",
+          name: "Lisa Rodriguez",
+          role: "mentor",
+          avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=lisa",
+          bio: "Marketing executive with expertise in digital marketing, brand strategy, and growth hacking. I've helped scale multiple startups to acquisition. Let me help you develop your marketing skills and career path in this dynamic field.",
+          domains: ["Marketing", "Business Strategy"],
+          hourlyRate: 70,
+        },
+      };
+
+      // Generate mock availability data
+      const today = new Date();
+      const mockAvailabilities: Availability[] = [];
+
+      // Generate slots for the next 7 days
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() + i);
+
+        // Generate 3 slots per day
+        for (let hour = 9; hour < 17; hour += 3) {
+          const startTime = new Date(date);
+          startTime.setHours(hour, 0, 0, 0);
+
+          const endTime = new Date(startTime);
+          endTime.setHours(startTime.getHours() + 1);
+
+          mockAvailabilities.push({
+            id: `slot-${i}-${hour}`,
+            mentorId: id,
+            startTime: startTime.toISOString(),
+            endTime: endTime.toISOString(),
+            isBooked: Math.random() > 0.7, // Randomly mark some as booked
+          });
+        }
+      }
+
+      setMentor(mockMentors[id] || null);
+      setAvailabilities(mockAvailabilities.filter((slot) => !slot.isBooked));
     } catch (error) {
       console.error("Error fetching mentor data:", error);
     } finally {
@@ -73,17 +137,16 @@ export function MentorProfile() {
 
     try {
       setIsSubmitting(true);
-      await requestSession({
-        mentorId: mentor.id,
-        menteeId: user.id,
-        startTime: selectedSlot.startTime,
-        endTime: selectedSlot.endTime,
-      });
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
+      // Mock successful booking
+      alert("Session request sent successfully!");
       setIsBookingDialogOpen(false);
       navigate("/sessions");
     } catch (error) {
       console.error("Error booking session:", error);
+      alert("Failed to book session. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -181,11 +244,22 @@ export function MentorProfile() {
               <TabsContent value="calendar" className="space-y-4">
                 <div className="grid gap-6 md:grid-cols-2">
                   <div>
+                    <div className="mb-2 text-sm font-medium text-muted-foreground">
+                      Days with available slots are highlighted in green
+                    </div>
                     <Calendar
                       mode="single"
                       selected={selectedDate}
                       onSelect={setSelectedDate}
                       className="rounded-md border"
+                      modifiers={{
+                        available: availabilities
+                          .filter((slot) => !slot.isBooked)
+                          .map((slot) => new Date(slot.startTime)),
+                      }}
+                      modifiersClassNames={{
+                        available: "bg-green-50 font-medium text-green-900",
+                      }}
                     />
                   </div>
                   <div>
@@ -200,29 +274,38 @@ export function MentorProfile() {
                         No available slots for this date
                       </p>
                     ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        {availableSlotsForSelectedDate.map((slot) => {
-                          const startTime = parseISO(slot.startTime);
-                          const endTime = parseISO(slot.endTime);
-                          return (
-                            <Button
-                              key={slot.id}
-                              variant="outline"
-                              className={
-                                selectedSlot?.id === slot.id
-                                  ? "border-primary"
-                                  : ""
-                              }
-                              onClick={() => {
-                                setSelectedSlot(slot);
-                                setIsBookingDialogOpen(true);
-                              }}
-                            >
-                              {format(startTime, "h:mm a")} -{" "}
-                              {format(endTime, "h:mm a")}
-                            </Button>
-                          );
-                        })}
+                      <div className="space-y-4">
+                        <div className="text-sm text-muted-foreground mb-2">
+                          Select a time slot to book a session
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {availableSlotsForSelectedDate.map((slot) => {
+                            const startTime = parseISO(slot.startTime);
+                            const endTime = parseISO(slot.endTime);
+                            return (
+                              <Button
+                                key={slot.id}
+                                variant="outline"
+                                className={
+                                  selectedSlot?.id === slot.id
+                                    ? "border-primary bg-primary/10"
+                                    : ""
+                                }
+                                onClick={() => {
+                                  setSelectedSlot(slot);
+                                  setIsBookingDialogOpen(true);
+                                }}
+                              >
+                                {format(startTime, "h:mm a")} -{" "}
+                                {format(endTime, "h:mm a")}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-2">
+                          <p>• Session duration: 1 hour</p>
+                          <p>• Payment required after booking confirmation</p>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -300,7 +383,8 @@ export function MentorProfile() {
               )}
               <p className="text-sm text-muted-foreground">
                 Your request will be sent to {mentor.name} for confirmation. You
-                will be notified once they respond.
+                will be notified once they respond. After confirmation, you'll
+                need to complete payment to secure the session.
               </p>
             </div>
           )}

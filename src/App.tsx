@@ -41,6 +41,26 @@ const AvailabilityManager = lazy(() =>
     default: module.AvailabilityManager,
   })),
 );
+const SessionDetails = lazy(() =>
+  import("./components/sessions/session-details").then((module) => ({
+    default: module.SessionDetails,
+  })),
+);
+const SessionList = lazy(() =>
+  import("./components/sessions/session-list").then((module) => ({
+    default: module.SessionList,
+  })),
+);
+const SessionHistory = lazy(() =>
+  import("./components/history/session-history").then((module) => ({
+    default: module.SessionHistory,
+  })),
+);
+const NotificationCenter = lazy(() =>
+  import("./components/notifications/notification-center").then((module) => ({
+    default: module.NotificationCenter,
+  })),
+);
 
 function App() {
   return (
@@ -61,6 +81,14 @@ function App() {
             <Route path="/mentors" element={<MentorList />} />
             <Route path="/mentors/:mentorId" element={<MentorProfile />} />
             <Route path="/availability" element={<AvailabilityManager />} />
+            <Route path="/sessions" element={<SessionList />} />
+            <Route path="/sessions/:sessionId" element={<SessionDetails />} />
+            <Route
+              path="/sessions/current-session"
+              element={<SessionDetails />}
+            />
+            <Route path="/history" element={<SessionHistory />} />
+            <Route path="/notifications" element={<NotificationCenter />} />
           </Routes>
           {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
         </MainLayout>

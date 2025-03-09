@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAuth } from "@/contexts/AuthContext";
+import { resendVerificationEmail } from "@/lib/auth-helpers";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +25,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const formSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -35,6 +45,11 @@ export function LoginForm() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showVerificationDialog, setShowVerificationDialog] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationStatus, setVerificationStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -51,7 +66,19 @@ export function LoginForm() {
       await login(values.email, values.password);
       navigate("/dashboard");
     } catch (err: any) {
-      setError(err.message || "Failed to login");
+      const errorMessage = err.message || "Failed to login";
+
+      // Check if the error is related to email verification
+      if (
+        errorMessage.includes("Email not confirmed") ||
+        errorMessage.includes("Invalid login credentials") ||
+        errorMessage.toLowerCase().includes("email verification")
+      ) {
+        setVerificationEmail(values.email);
+        setShowVerificationDialog(true);
+      }
+
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -117,6 +144,68 @@ export function LoginForm() {
           </Button>
         </p>
       </CardFooter>
+
+      {/* Email Verification Dialog */}
+      <Dialog
+        open={showVerificationDialog}
+        onOpenChange={setShowVerificationDialog}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Email Verification Required</DialogTitle>
+            <DialogDescription>
+              Your email verification link may have expired. Would you like to
+              receive a new verification email?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              type="email"
+              placeholder="Confirm your email address"
+              value={verificationEmail}
+              onChange={(e) => setVerificationEmail(e.target.value)}
+              className="mb-4"
+            />
+            {verificationStatus === "success" && (
+              <Alert className="bg-green-50 text-green-800 border-green-200">
+                <AlertDescription>
+                  Verification email sent! Please check your inbox.
+                </AlertDescription>
+              </Alert>
+            )}
+            {verificationStatus === "error" && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  Failed to send verification email. Please try again.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowVerificationDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                setVerificationStatus("loading");
+                const result = await resendVerificationEmail(verificationEmail);
+                setVerificationStatus(result.success ? "success" : "error");
+                if (result.success) {
+                  setTimeout(() => setShowVerificationDialog(false), 3000);
+                }
+              }}
+              disabled={verificationStatus === "loading"}
+            >
+              {verificationStatus === "loading"
+                ? "Sending..."
+                : "Resend Verification"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

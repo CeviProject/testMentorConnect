@@ -86,6 +86,30 @@ export function AvailabilityManager() {
       const endDateTime = new Date(date);
       endDateTime.setHours(endHour, endMinute, 0, 0);
 
+      // Validate time slot
+      if (startDateTime >= endDateTime) {
+        throw new Error("End time must be after start time");
+      }
+
+      if (startDateTime < new Date()) {
+        throw new Error("Cannot add availability in the past");
+      }
+
+      // Check for overlapping slots
+      const isOverlapping = availabilities.some((slot) => {
+        const slotStart = new Date(slot.startTime);
+        const slotEnd = new Date(slot.endTime);
+        return (
+          (startDateTime >= slotStart && startDateTime < slotEnd) ||
+          (endDateTime > slotStart && endDateTime <= slotEnd) ||
+          (startDateTime <= slotStart && endDateTime >= slotEnd)
+        );
+      });
+
+      if (isOverlapping) {
+        throw new Error("This time slot overlaps with an existing slot");
+      }
+
       await addAvailability({
         mentorId: user.id,
         startTime: startDateTime.toISOString(),
@@ -97,6 +121,7 @@ export function AvailabilityManager() {
       setIsAddDialogOpen(false);
     } catch (error) {
       console.error("Error adding availability:", error);
+      alert(error.message || "Error adding availability");
     } finally {
       setIsSubmitting(false);
     }
@@ -251,7 +276,32 @@ export function AvailabilityManager() {
                             </p>
                           </div>
                           {!slot.isBooked && (
-                            <Button variant="outline" size="sm">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (
+                                  confirm(
+                                    "Are you sure you want to remove this availability slot?",
+                                  )
+                                ) {
+                                  // Call API to remove the slot
+                                  fetch(`/api/availabilities/${slot.id}`, {
+                                    method: "DELETE",
+                                  })
+                                    .then(() => {
+                                      fetchAvailability();
+                                    })
+                                    .catch((err) => {
+                                      console.error(
+                                        "Error removing slot:",
+                                        err,
+                                      );
+                                      alert("Failed to remove slot");
+                                    });
+                                }
+                              }}
+                            >
                               Remove
                             </Button>
                           )}

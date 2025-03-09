@@ -75,13 +75,13 @@ export function MainLayout({ children }: MainLayoutProps) {
 
   const navItems = [
     { label: "Dashboard", href: "/dashboard" },
-    ...(user?.role === "mentee"
-      ? [{ label: "Find Mentors", href: "/mentors" }]
-      : []),
+    { label: "Find Mentors", href: "/mentors" },
     ...(user?.role === "mentor"
       ? [{ label: "My Availability", href: "/availability" }]
       : []),
     { label: "Sessions", href: "/sessions" },
+    { label: "History", href: "/history" },
+    { label: "Video Call", href: "/sessions/current-session" },
   ];
 
   return (

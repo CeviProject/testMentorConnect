@@ -53,9 +53,52 @@ export function MentorList() {
   const fetchMentors = async () => {
     try {
       setIsLoading(true);
-      const data = await getMentors();
-      setMentors(data);
-      setFilteredMentors(data);
+      // Mock data for demo purposes
+      const mockMentors = [
+        {
+          id: "mentor-1",
+          email: "john@example.com",
+          name: "John Smith",
+          role: "mentor",
+          avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=john",
+          bio: "Senior software engineer with 10+ years of experience in web development, cloud architecture, and team leadership.",
+          domains: ["Software Development", "Leadership", "Career Development"],
+          hourlyRate: 75,
+        },
+        {
+          id: "mentor-2",
+          email: "sarah@example.com",
+          name: "Sarah Johnson",
+          role: "mentor",
+          avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=sarah",
+          bio: "Data scientist specializing in machine learning and AI applications. Former research lead at Google.",
+          domains: ["Data Science", "Software Development"],
+          hourlyRate: 90,
+        },
+        {
+          id: "mentor-3",
+          email: "michael@example.com",
+          name: "Michael Chen",
+          role: "mentor",
+          avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=michael",
+          bio: "Product manager with experience at startups and Fortune 500 companies. Passionate about user-centered design.",
+          domains: ["Product Management", "UX/UI Design", "Business Strategy"],
+          hourlyRate: 65,
+        },
+        {
+          id: "mentor-4",
+          email: "lisa@example.com",
+          name: "Lisa Rodriguez",
+          role: "mentor",
+          avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=lisa",
+          bio: "Marketing executive with expertise in digital marketing, brand strategy, and growth hacking.",
+          domains: ["Marketing", "Business Strategy"],
+          hourlyRate: 70,
+        },
+      ];
+
+      setMentors(mockMentors);
+      setFilteredMentors(mockMentors);
     } catch (error) {
       console.error("Error fetching mentors:", error);
     } finally {
@@ -79,6 +122,15 @@ export function MentorList() {
         mentor.domains?.includes(selectedDomain),
       );
     }
+
+    // Sort by availability (mentors with more available slots first)
+    filtered.sort((a, b) => {
+      // This is a placeholder - in a real app, you'd fetch availability counts
+      // and sort based on that
+      const aAvailability = a.hourlyRate ? 1 : 0;
+      const bAvailability = b.hourlyRate ? 1 : 0;
+      return bAvailability - aAvailability;
+    });
 
     setFilteredMentors(filtered);
   };

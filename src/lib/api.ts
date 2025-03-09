@@ -56,6 +56,33 @@ export async function getMentorById(id: string): Promise<User | null> {
   }
 }
 
+export async function getSessionById(id: string): Promise<Session | null> {
+  try {
+    const { data, error } = await supabase
+      .from("sessions")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) throw error;
+
+    return {
+      id: data.id,
+      mentorId: data.mentor_id,
+      menteeId: data.mentee_id,
+      startTime: data.start_time,
+      endTime: data.end_time,
+      status: data.status,
+      paymentStatus: data.payment_status,
+      notes: data.notes,
+      transcript: data.transcript,
+    };
+  } catch (error) {
+    console.error("Error getting session:", error);
+    return null;
+  }
+}
+
 // Availability APIs
 export async function getMentorAvailability(
   mentorId: string,

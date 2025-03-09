@@ -1,9 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
+import { Database } from "@/types/supabase";
 
-// For development/demo purposes, use mock values if environment variables are not set
-const supabaseUrl =
-  import.meta.env.VITE_SUPABASE_URL || "https://example.supabase.co";
-const supabaseAnonKey =
-  import.meta.env.VITE_SUPABASE_ANON_KEY || "mock-key-for-development-only";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn(
+    "Supabase URL or Anon Key is missing. Please check your environment variables.",
+  );
+}
+
+export const supabase = createClient<Database>(
+  supabaseUrl || "https://placeholder.supabase.co",
+  supabaseAnonKey || "placeholder-key",
+);
