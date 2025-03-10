@@ -9,6 +9,27 @@ export interface User {
   bio?: string;
   domains?: string[];
   hourlyRate?: number;
+  experienceYears?: number;
+  availabilityCount?: number;
+}
+
+export interface MentorProfile {
+  id: string;
+  bio?: string;
+  domains?: string[];
+  experienceYears?: number;
+  hourlyRate?: number;
+  availabilityHours?: Record<string, string[]>;
+  education?: string;
+  company?: string;
+  position?: string;
+  languages?: string[];
+  socialLinks?: {
+    linkedin?: string;
+    github?: string;
+    twitter?: string;
+    website?: string;
+  };
 }
 
 export interface Availability {
@@ -29,6 +50,12 @@ export interface Session {
   paymentStatus: "pending" | "completed" | "refunded";
   notes?: string;
   transcript?: string;
+  videoCallId?: string;
+  videoCallStatus?: string;
+  recordingUrl?: string;
+  paymentAmount?: number;
+  paymentMethod?: string;
+  transactionId?: string;
 }
 
 export interface Notification {

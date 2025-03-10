@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getMentorAvailability, addAvailability } from "@/lib/api";
+import {
+  getMentorAvailability,
+  addAvailability,
+  deleteAvailability,
+} from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { Availability } from "@/types";
 
 import { Button } from "@/components/ui/button";
@@ -108,6 +113,24 @@ export function AvailabilityManager() {
 
       if (isOverlapping) {
         throw new Error("This time slot overlaps with an existing slot");
+      }
+
+      // First ensure mentor profile exists
+      const { data: mentorProfile } = await supabase
+        .from("mentor_profiles")
+        .select("id")
+        .eq("id", user.id)
+        .single();
+
+      // If mentor profile doesn't exist, create it
+      if (!mentorProfile) {
+        await supabase.from("mentor_profiles").insert({
+          id: user.id,
+          bio: user.bio || "",
+          domains: user.domains || [],
+          hourly_rate: user.hourlyRate || 50,
+          experience_years: user.experienceYears || 0,
+        });
       }
 
       await addAvailability({
@@ -279,26 +302,19 @@ export function AvailabilityManager() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => {
+                              onClick={async () => {
                                 if (
                                   confirm(
                                     "Are you sure you want to remove this availability slot?",
                                   )
                                 ) {
-                                  // Call API to remove the slot
-                                  fetch(`/api/availabilities/${slot.id}`, {
-                                    method: "DELETE",
-                                  })
-                                    .then(() => {
-                                      fetchAvailability();
-                                    })
-                                    .catch((err) => {
-                                      console.error(
-                                        "Error removing slot:",
-                                        err,
-                                      );
-                                      alert("Failed to remove slot");
-                                    });
+                                  try {
+                                    await deleteAvailability(slot.id);
+                                    await fetchAvailability();
+                                  } catch (err) {
+                                    console.error("Error removing slot:", err);
+                                    alert("Failed to remove slot");
+                                  }
                                 }
                               }}
                             >

@@ -1,8 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { getUserSessions, updateSessionStatus } from "@/lib/api";
-import { Session } from "@/types";
+import {
+  getUserSessions,
+  updateSessionStatus,
+  getMentorProfile,
+} from "@/lib/api";
+import { Session, MentorProfile } from "@/types";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,12 +27,27 @@ export function MentorDashboard() {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [mentorProfile, setMentorProfile] = useState<MentorProfile | null>(
+    null,
+  );
 
   useEffect(() => {
     if (user) {
       fetchSessions();
+      fetchMentorProfile();
     }
   }, [user]);
+
+  const fetchMentorProfile = async () => {
+    try {
+      if (user) {
+        const profile = await getMentorProfile(user.id);
+        setMentorProfile(profile);
+      }
+    } catch (error) {
+      console.error("Error fetching mentor profile:", error);
+    }
+  };
 
   const fetchSessions = async () => {
     try {
@@ -233,6 +252,35 @@ export function MentorDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {!mentorProfile && (
+        <Card className="bg-yellow-50 border-yellow-200">
+          <CardHeader>
+            <CardTitle>Complete Your Mentor Profile</CardTitle>
+            <CardDescription>
+              Set up your mentor profile to start receiving session requests
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4">
+              You need to complete your mentor profile before you can receive
+              session requests. Add your expertise domains, experience, and
+              hourly rate.
+            </p>
+            <div className="flex space-x-4">
+              <Button onClick={() => navigate("/mentor-profile")}>
+                Set Up Mentor Profile
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate("/availability")}
+              >
+                Set Availability
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

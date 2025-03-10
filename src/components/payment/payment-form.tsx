@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Session } from "@/types";
 import { format, parseISO } from "date-fns";
+import { createPayment } from "@/lib/api";
+import { loadStripe } from "@stripe/stripe-js";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -34,11 +36,37 @@ export function PaymentForm({ session, onPaymentComplete }: PaymentFormProps) {
     e.preventDefault();
     setIsProcessing(true);
 
-    // Simulate payment processing
-    setTimeout(() => {
+    try {
+      // Create a Stripe payment intent
+      const stripePromise = loadStripe(
+        import.meta.env.VITE_STRIPE_PUBLIC_KEY ||
+          "pk_test_TYooMQauvdEDq54NiTphI7jx",
+      );
+      const stripe = await stripePromise;
+
+      if (!stripe) {
+        throw new Error("Stripe failed to load");
+      }
+
+      // In a real app, you would call your backend to create a payment intent
+      // For demo purposes, we'll simulate a successful payment
+      setTimeout(async () => {
+        try {
+          // Process payment through API
+          await createPayment(session.id, 75, "credit_card");
+          onPaymentComplete();
+        } catch (error) {
+          console.error("Payment processing error:", error);
+          alert("Payment processing failed. Please try again.");
+        } finally {
+          setIsProcessing(false);
+        }
+      }, 2000);
+    } catch (error) {
+      console.error("Stripe initialization error:", error);
+      alert("Payment system initialization failed. Please try again.");
       setIsProcessing(false);
-      onPaymentComplete();
-    }, 2000);
+    }
   };
 
   // Format card number with spaces

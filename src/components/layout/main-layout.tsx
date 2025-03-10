@@ -77,11 +77,15 @@ export function MainLayout({ children }: MainLayoutProps) {
     { label: "Dashboard", href: "/dashboard" },
     { label: "Find Mentors", href: "/mentors" },
     ...(user?.role === "mentor"
-      ? [{ label: "My Availability", href: "/availability" }]
+      ? [
+          { label: "Mentor Profile", href: "/mentor-profile" },
+          { label: "Availability", href: "/availability" },
+        ]
       : []),
     { label: "Sessions", href: "/sessions" },
     { label: "History", href: "/history" },
     { label: "Video Call", href: "/sessions/current-session" },
+    { label: "Profile", href: "/profile" },
   ];
 
   return (
@@ -102,7 +106,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                 <Link
                   key={item.href}
                   to={item.href}
-                  className="text-sm font-medium transition-colors hover:text-primary"
+                  className="text-sm font-medium transition-colors hover:text-primary px-3 py-2"
                 >
                   {item.label}
                 </Link>

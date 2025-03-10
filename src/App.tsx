@@ -2,7 +2,8 @@ import { Suspense, lazy } from "react";
 import { useRoutes, Routes, Route, Navigate } from "react-router-dom";
 import { MainLayout } from "./components/layout/main-layout";
 import { AuthProvider } from "./contexts/AuthContext";
-import routes from "tempo-routes";
+import tempoRoutes from "tempo-routes";
+import appRoutes from "./routes";
 
 // Lazy load components
 const Home = lazy(() => import("./components/home"));
@@ -61,6 +62,19 @@ const NotificationCenter = lazy(() =>
     default: module.NotificationCenter,
   })),
 );
+const MentorProfilePage = lazy(() =>
+  import("./components/profile/mentor-profile-page").then((module) => ({
+    default: module.MentorProfilePage,
+  })),
+);
+
+const ProfilePage = lazy(() =>
+  import("./components/profile/profile-page").then((module) => ({
+    default: module.ProfilePage,
+  })),
+);
+
+const MentorsPage = lazy(() => import("./pages/MentorsPage"));
 
 function App() {
   return (
@@ -78,7 +92,7 @@ function App() {
             <Route path="/login" element={<LoginForm />} />
             <Route path="/register" element={<RegisterForm />} />
             <Route path="/dashboard" element={<Home />} />
-            <Route path="/mentors" element={<MentorList />} />
+            <Route path="/mentors" element={<MentorsPage />} />
             <Route path="/mentors/:mentorId" element={<MentorProfile />} />
             <Route path="/availability" element={<AvailabilityManager />} />
             <Route path="/sessions" element={<SessionList />} />
@@ -89,8 +103,10 @@ function App() {
             />
             <Route path="/history" element={<SessionHistory />} />
             <Route path="/notifications" element={<NotificationCenter />} />
+            <Route path="/mentor-profile" element={<MentorProfilePage />} />
+            <Route path="/profile" element={<ProfilePage />} />
           </Routes>
-          {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
+          {useRoutes(appRoutes)}
         </MainLayout>
       </Suspense>
     </AuthProvider>

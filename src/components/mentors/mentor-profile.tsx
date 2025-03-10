@@ -199,12 +199,20 @@ export function MentorProfile() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div>
-                <h4 className="text-sm font-medium">Expertise</h4>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Expertise</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {mentor.domains?.map((domain) => (
                     <Badge key={domain} variant="secondary">
-                      {domain}
+                      {domain.includes("-")
+                        ? domain
+                            .split("-")
+                            .map(
+                              (word) =>
+                                word.charAt(0).toUpperCase() + word.slice(1),
+                            )
+                            .join(" ")
+                        : domain}
                     </Badge>
                   )) || (
                     <span className="text-xs text-muted-foreground">
@@ -213,6 +221,91 @@ export function MentorProfile() {
                   )}
                 </div>
               </div>
+
+              {mentor.experienceYears && (
+                <div className="space-y-1 mt-4">
+                  <p className="text-sm font-medium">Experience</p>
+                  <p className="text-sm">{mentor.experienceYears} years</p>
+                </div>
+              )}
+
+              {mentor.position && mentor.company && (
+                <div className="space-y-1 mt-4">
+                  <p className="text-sm font-medium">Current Role</p>
+                  <p className="text-sm">
+                    {mentor.position} at {mentor.company}
+                  </p>
+                </div>
+              )}
+
+              {mentor.education && (
+                <div className="space-y-1 mt-4">
+                  <p className="text-sm font-medium">Education</p>
+                  <p className="text-sm">{mentor.education}</p>
+                </div>
+              )}
+
+              {mentor.languages && mentor.languages.length > 0 && (
+                <div className="space-y-1 mt-4">
+                  <p className="text-sm font-medium">Languages</p>
+                  <div className="flex flex-wrap gap-1">
+                    {mentor.languages.map((lang) => (
+                      <Badge key={lang} variant="outline">
+                        {lang}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {mentor.socialLinks &&
+                Object.values(mentor.socialLinks).some((link) => link) && (
+                  <div className="space-y-1 mt-4">
+                    <p className="text-sm font-medium">Connect</p>
+                    <div className="flex space-x-2">
+                      {mentor.socialLinks.linkedin && (
+                        <a
+                          href={mentor.socialLinks.linkedin}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          LinkedIn
+                        </a>
+                      )}
+                      {mentor.socialLinks.github && (
+                        <a
+                          href={mentor.socialLinks.github}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-800 hover:text-black"
+                        >
+                          GitHub
+                        </a>
+                      )}
+                      {mentor.socialLinks.twitter && (
+                        <a
+                          href={mentor.socialLinks.twitter}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:text-blue-600"
+                        >
+                          Twitter
+                        </a>
+                      )}
+                      {mentor.socialLinks.website && (
+                        <a
+                          href={mentor.socialLinks.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-purple-600 hover:text-purple-800"
+                        >
+                          Website
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
             </div>
           </CardContent>
         </Card>

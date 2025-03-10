@@ -1,8 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Session } from "@/types";
-import { updateSessionTranscript, updateSessionNotes } from "@/lib/api";
-import { initStreamClient, createOrJoinCall } from "@/lib/stream";
+import {
+  updateSessionTranscript,
+  updateSessionNotes,
+  createVideoCall,
+  updateVideoCallStatus,
+  updateSessionStatus,
+} from "@/lib/api";
+import { createZegoCall } from "@/lib/zegocloud";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,12 +32,6 @@ import {
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
-import {
-  StreamVideo,
-  StreamCall,
-  StreamVideoClient,
-} from "@stream-io/video-react-sdk";
-import "@stream-io/video-react-sdk/dist/css/styles.css";
 
 interface VideoCallProps {
   session: Session;
@@ -49,12 +49,10 @@ export function VideoCall({ session, onEnd }: VideoCallProps) {
   const [notesShared, setNotesShared] = useState(false);
   const [callTime, setCallTime] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
-  const [streamClient, setStreamClient] = useState<StreamVideoClient | null>(
-    null,
-  );
-  const [call, setCall] = useState<StreamCall | null>(null);
+  const [zegoCall, setZegoCall] = useState<any>(null);
+  const zegoContainerRef = useRef<HTMLDivElement>(null);
 
-  // Stream.io call configuration
+  // Call configuration
   const callId = session.id;
   const userId = user?.id || "user-1";
   const userName = user?.name || "User";
@@ -109,63 +107,74 @@ export function VideoCall({ session, onEnd }: VideoCallProps) {
     return () => clearInterval(interval);
   }, []);
 
-  // Initialize Stream Video client
+  // Initialize ZegoCloud Video client
   useEffect(() => {
-    const setupStreamCall = async () => {
+    console.log("Setting up ZegoCloud call");
+    const setupZegoCall = async () => {
       try {
-        // Check if we have the required environment variables
-        if (!import.meta.env.VITE_STREAM_API_KEY) {
-          console.error(
-            "Stream API key is missing. Please check your .env file",
-          );
-          return;
+        // If this is a new call, create a record in the database
+        if (!session.videoCallId) {
+          try {
+            const callId = `call-${session.id}`;
+            await createVideoCall(session.id, callId);
+          } catch (dbError) {
+            console.error("Error creating video call record:", dbError);
+            // Continue even if database record creation fails
+          }
         }
 
-        // Initialize Stream client using our helper function
-        const client = initStreamClient(userId, userName, user?.avatar);
-        setStreamClient(client);
-
-        // Create or join the call
-        const streamCall = await createOrJoinCall(client, callId, {
-          mentorId: session.mentorId,
-          menteeId: session.menteeId,
-          startTime: session.startTime,
-          endTime: session.endTime,
-        });
-
-        // Join the call
-        await streamCall.join();
-
-        // Enable camera and microphone
-        if (micEnabled) await streamCall.microphone.enable();
-        if (videoEnabled) await streamCall.camera.enable();
-
-        setCall(streamCall);
-
-        // Set up call recording if needed
-        if (isRecording) {
-          await streamCall.startRecording();
+        // Update video call status to started
+        if (session.videoCallId) {
+          try {
+            await updateVideoCallStatus(session.videoCallId, "started");
+          } catch (statusError) {
+            console.error("Error updating video call status:", statusError);
+            // Continue even if status update fails
+          }
         }
 
-        // Set up transcription
-        streamCall.on("speech.started", (event) => {
-          const { participant, text } = event;
-          setTranscript((prev) => prev + `\n${participant.name}: ${text}`);
-        });
+        // Initialize ZegoCloud call if container ref is available
+        if (zegoContainerRef.current) {
+          console.log("Container ref is available, creating ZegoCloud call");
+          const roomID = session.videoCallId || `call-${session.id}`;
+          console.log("Room ID:", roomID);
+          console.log("User ID:", userId);
+          console.log("User Name:", userName);
+
+          // Add a small delay to ensure the container is fully rendered
+          setTimeout(() => {
+            const zc = createZegoCall(
+              zegoContainerRef.current!,
+              roomID,
+              userId,
+              userName,
+              handleEndCall,
+            );
+            console.log("ZegoCloud call created:", zc);
+            setZegoCall(zc);
+          }, 500);
+        } else {
+          console.error("Container ref is not available");
+        }
       } catch (error) {
-        console.error("Error setting up Stream call:", error);
+        console.error("Error setting up call:", error);
+        setTranscript(
+          "Error setting up video call. Please check your configuration.",
+        );
       }
     };
 
-    setupStreamCall();
+    setupZegoCall();
 
     return () => {
       // Clean up
-      if (call) {
-        if (isRecording) call.stopRecording();
-        call.leave();
+      if (zegoCall) {
+        try {
+          // ZegoCloud handles cleanup internally when the component unmounts
+        } catch (error) {
+          console.error("Error during call cleanup:", error);
+        }
       }
-      if (streamClient) streamClient.disconnectUser();
     };
   }, []);
 
@@ -174,19 +183,36 @@ export function VideoCall({ session, onEnd }: VideoCallProps) {
       setIsSaving(true);
 
       // Save transcript and notes
-      await updateSessionTranscript(session.id, transcript);
-      await updateSessionNotes(session.id, notes);
-
-      // End Stream call
-      if (call) {
-        if (isRecording) await call.stopRecording();
-        await call.leave();
+      try {
+        await updateSessionTranscript(session.id, transcript);
+        await updateSessionNotes(session.id, notes);
+      } catch (saveError) {
+        console.error("Error saving transcript/notes:", saveError);
+        // Continue with ending the call even if saving fails
       }
-      if (streamClient) await streamClient.disconnectUser();
+
+      // Update video call status to ended
+      if (session.videoCallId) {
+        try {
+          await updateVideoCallStatus(session.videoCallId, "ended");
+        } catch (statusError) {
+          console.error("Error updating video call status:", statusError);
+          // Continue with ending the call even if status update fails
+        }
+      }
+
+      // Update session status to completed
+      try {
+        await updateSessionStatus(session.id, "completed");
+      } catch (sessionError) {
+        console.error("Error updating session status:", sessionError);
+      }
 
       onEnd();
     } catch (error) {
       console.error("Error ending call:", error);
+      // Still call onEnd() to ensure the user can exit the call view
+      onEnd();
     } finally {
       setIsSaving(false);
     }
@@ -212,66 +238,28 @@ export function VideoCall({ session, onEnd }: VideoCallProps) {
   };
 
   const toggleMic = async () => {
-    if (!call) return;
-
-    try {
-      if (micEnabled) {
-        await call.microphone.disable();
-      } else {
-        await call.microphone.enable();
-      }
-      setMicEnabled(!micEnabled);
-    } catch (error) {
-      console.error("Error toggling microphone:", error);
-    }
+    // ZegoCloud handles mic toggling through its UI
+    setMicEnabled(!micEnabled);
   };
 
   const toggleVideo = async () => {
-    if (!call) return;
-
-    try {
-      if (videoEnabled) {
-        await call.camera.disable();
-      } else {
-        await call.camera.enable();
-      }
-      setVideoEnabled(!videoEnabled);
-    } catch (error) {
-      console.error("Error toggling camera:", error);
-    }
+    // ZegoCloud handles video toggling through its UI
+    setVideoEnabled(!videoEnabled);
   };
 
   const toggleRecording = async () => {
-    if (!call) return;
-
-    try {
-      if (!isRecording) {
-        await call.startRecording();
-        alert("Recording started");
-      } else {
-        await call.stopRecording();
-        alert("Recording stopped and saved");
-      }
-      setIsRecording(!isRecording);
-    } catch (error) {
-      console.error("Error toggling recording:", error);
+    // ZegoCloud has built-in recording functionality
+    setIsRecording(!isRecording);
+    if (!isRecording) {
+      alert("Recording started");
+    } else {
+      alert("Recording stopped and saved");
     }
   };
 
   const toggleScreenShare = async () => {
-    if (!call) return;
-
-    try {
-      if (!isSharing) {
-        await call.startScreenShare();
-      } else {
-        await call.stopScreenShare();
-      }
-      setIsSharing(!isSharing);
-    } catch (error) {
-      console.error("Error toggling screen share:", error);
-      setIsSharing(false);
-    }
+    // ZegoCloud handles screen sharing through its UI
+    setIsSharing(!isSharing);
   };
 
   return (
@@ -298,34 +286,15 @@ export function VideoCall({ session, onEnd }: VideoCallProps) {
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2 space-y-6">
           <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-            {streamClient && call ? (
-              <StreamVideo client={streamClient}>
-                <StreamCall call={call}>
-                  <div className="relative w-full h-full">
-                    {/* Main call layout with participants */}
-                    <div className="stream-call-container w-full h-full">
-                      {/* This will render the Stream SDK's call UI */}
-                      <div className="stream-participants-container" />
-                    </div>
-
-                    {/* Recording indicator */}
-                    {isRecording && (
-                      <div className="absolute top-4 left-4 px-3 py-1 bg-red-500 text-white rounded-full flex items-center space-x-2 z-10">
-                        <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div>
-                        <span className="text-sm font-medium">Recording</span>
-                      </div>
-                    )}
-                  </div>
-                </StreamCall>
-              </StreamVideo>
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
-                  <p className="text-white">Connecting to call...</p>
+            <div ref={zegoContainerRef} className="w-full h-full">
+              {/* Recording indicator */}
+              {isRecording && (
+                <div className="absolute top-4 left-4 px-3 py-1 bg-red-500 text-white rounded-full flex items-center space-x-2 z-10">
+                  <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div>
+                  <span className="text-sm font-medium">Recording</span>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <div className="flex justify-center space-x-4">

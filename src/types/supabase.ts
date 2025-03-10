@@ -44,6 +44,54 @@ export type Database = {
           },
         ]
       }
+      mentor_profiles: {
+        Row: {
+          availability_hours: Json | null
+          bio: string | null
+          company: string | null
+          created_at: string | null
+          domains: string[] | null
+          education: string | null
+          experience_years: number | null
+          hourly_rate: number | null
+          id: string
+          languages: string[] | null
+          position: string | null
+          social_links: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          availability_hours?: Json | null
+          bio?: string | null
+          company?: string | null
+          created_at?: string | null
+          domains?: string[] | null
+          education?: string | null
+          experience_years?: number | null
+          hourly_rate?: number | null
+          id: string
+          languages?: string[] | null
+          position?: string | null
+          social_links?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          availability_hours?: Json | null
+          bio?: string | null
+          company?: string | null
+          created_at?: string | null
+          domains?: string[] | null
+          education?: string | null
+          experience_years?: number | null
+          hourly_rate?: number | null
+          id?: string
+          languages?: string[] | null
+          position?: string | null
+          social_links?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string | null
@@ -193,7 +241,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_available_mentors: {
+        Args: {
+          domain_filter?: string
+        }
+        Returns: {
+          mentor_id: string
+          name: string
+          email: string
+          avatar_url: string
+          bio: string
+          domains: string[]
+          hourly_rate: number
+          experience_years: number
+          availability_count: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

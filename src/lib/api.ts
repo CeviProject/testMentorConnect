@@ -1,27 +1,86 @@
 import { supabase } from "./supabase";
-import { Availability, Session, Notification, User } from "@/types";
+import {
+  Availability,
+  Session,
+  Notification,
+  User,
+  MentorProfile,
+} from "@/types";
 
 // Mentor APIs
 export async function getMentors(domain?: string) {
   try {
-    let query = supabase.from("profiles").select("*").eq("role", "mentor");
+    // Use the get_available_mentors function to get mentors with availability count
+    let data;
+    let error;
 
-    if (domain) {
-      query = query.contains("domains", [domain]);
+    try {
+      const result = await supabase.rpc("get_available_mentors", {
+        domain_filter: domain || null,
+      });
+      data = result.data;
+      error = result.error;
+    } catch (rpcError) {
+      console.error("RPC error:", rpcError);
+      error = rpcError;
     }
 
-    const { data, error } = await query;
-    if (error) throw error;
+    if (error || !data) {
+      console.error("Error using get_available_mentors RPC:", error);
 
-    return data.map((profile) => ({
-      id: profile.id,
-      email: profile.email || "",
-      name: profile.name,
+      // Fallback to regular query if RPC fails
+      let query = supabase
+        .from("profiles")
+        .select(
+          `
+          id,
+          email,
+          name,
+          role,
+          avatar_url,
+          bio,
+          domains,
+          mentor_profiles(*)
+        `,
+        )
+        .eq("role", "mentor");
+
+      if (domain && domain !== "all") {
+        query = query.filter("mentor_profiles.domains", "cs", `{${domain}}`);
+      }
+
+      const { data: fallbackData, error: fallbackError } = await query;
+      if (fallbackError) throw fallbackError;
+
+      return fallbackData.map((profile) => {
+        const mentorProfile = profile.mentor_profiles?.[0] || {};
+        return {
+          id: profile.id,
+          email: profile.email || "",
+          name: profile.name,
+          role: "mentor" as const,
+          avatar: profile.avatar_url,
+          bio: mentorProfile.bio || "",
+          domains: mentorProfile.domains || [],
+          hourlyRate: mentorProfile.hourly_rate || 0,
+          experienceYears: mentorProfile.experience_years || 0,
+          availabilityCount: 0,
+        };
+      });
+    }
+
+    // Map the RPC results to the expected format
+    return data.map((mentor) => ({
+      id: mentor.mentor_id,
+      email: mentor.email || "",
+      name: mentor.name,
       role: "mentor" as const,
-      avatar: profile.avatar_url,
-      bio: profile.bio,
-      domains: profile.domains,
-      hourlyRate: profile.hourly_rate,
+      avatar: mentor.avatar_url,
+      bio: mentor.bio || "",
+      domains: mentor.domains || [],
+      hourlyRate: mentor.hourly_rate || 0,
+      experienceYears: mentor.experience_years || 0,
+      availabilityCount: mentor.availability_count || 0,
     }));
   } catch (error) {
     console.error("Error getting mentors:", error);
@@ -33,12 +92,23 @@ export async function getMentorById(id: string): Promise<User | null> {
   try {
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select(
+        `
+        id,
+        email,
+        name,
+        role,
+        avatar_url,
+        mentor_profiles(*)
+      `,
+      )
       .eq("id", id)
       .eq("role", "mentor")
       .single();
 
     if (error) throw error;
+
+    const mentorProfile = data.mentor_profiles?.[0] || {};
 
     return {
       id: data.id,
@@ -46,9 +116,10 @@ export async function getMentorById(id: string): Promise<User | null> {
       name: data.name,
       role: "mentor",
       avatar: data.avatar_url,
-      bio: data.bio,
-      domains: data.domains,
-      hourlyRate: data.hourly_rate,
+      bio: mentorProfile.bio || "",
+      domains: mentorProfile.domains || [],
+      hourlyRate: mentorProfile.hourly_rate || 0,
+      experienceYears: mentorProfile.experience_years || 0,
     };
   } catch (error) {
     console.error("Error getting mentor:", error);
@@ -60,11 +131,20 @@ export async function getSessionById(id: string): Promise<Session | null> {
   try {
     const { data, error } = await supabase
       .from("sessions")
-      .select("*")
+      .select(
+        `
+        *,
+        video_calls(*),
+        payments(*)
+      `,
+      )
       .eq("id", id)
       .single();
 
     if (error) throw error;
+
+    const videoCall = data.video_calls?.[0] || {};
+    const payment = data.payments?.[0] || {};
 
     return {
       id: data.id,
@@ -76,10 +156,114 @@ export async function getSessionById(id: string): Promise<Session | null> {
       paymentStatus: data.payment_status,
       notes: data.notes,
       transcript: data.transcript,
+      videoCallId: videoCall.stream_call_id,
+      videoCallStatus: videoCall.status,
+      recordingUrl: videoCall.recording_url,
+      paymentAmount: payment.amount,
+      paymentMethod: payment.payment_method,
+      transactionId: payment.transaction_id,
     };
   } catch (error) {
     console.error("Error getting session:", error);
     return null;
+  }
+}
+
+// Mentor Profile APIs
+export async function getMentorProfile(
+  mentorId: string,
+): Promise<MentorProfile | null> {
+  try {
+    const { data, error } = await supabase
+      .from("mentor_profiles")
+      .select("*")
+      .eq("id", mentorId)
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") {
+        // Record not found, return null
+        return null;
+      }
+      throw error;
+    }
+
+    return {
+      id: data.id,
+      bio: data.bio,
+      domains: data.domains,
+      experienceYears: data.experience_years,
+      hourlyRate: data.hourly_rate,
+      availabilityHours: data.availability_hours,
+      education: data.education,
+      company: data.company,
+      position: data.position,
+      languages: data.languages,
+      socialLinks: data.social_links,
+    };
+  } catch (error) {
+    console.error("Error getting mentor profile:", error);
+    return null;
+  }
+}
+
+export async function updateMentorProfile(
+  mentorId: string,
+  profile: Partial<MentorProfile>,
+) {
+  try {
+    // Check if profile exists
+    const existingProfile = await getMentorProfile(mentorId);
+
+    if (existingProfile) {
+      // Update existing profile
+      const { data, error } = await supabase
+        .from("mentor_profiles")
+        .update({
+          bio: profile.bio,
+          domains: profile.domains,
+          experience_years: profile.experienceYears,
+          hourly_rate: profile.hourlyRate,
+          availability_hours: profile.availabilityHours,
+          education: profile.education,
+          company: profile.company,
+          position: profile.position,
+          languages: profile.languages,
+          social_links: profile.socialLinks,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", mentorId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } else {
+      // Create new profile
+      const { data, error } = await supabase
+        .from("mentor_profiles")
+        .insert({
+          id: mentorId,
+          bio: profile.bio,
+          domains: profile.domains,
+          experience_years: profile.experienceYears,
+          hourly_rate: profile.hourlyRate,
+          availability_hours: profile.availabilityHours,
+          education: profile.education,
+          company: profile.company,
+          position: profile.position,
+          languages: profile.languages,
+          social_links: profile.socialLinks,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    }
+  } catch (error) {
+    console.error("Error updating mentor profile:", error);
+    throw error;
   }
 }
 
@@ -91,7 +275,8 @@ export async function getMentorAvailability(
     const { data, error } = await supabase
       .from("availabilities")
       .select("*")
-      .eq("mentor_id", mentorId);
+      .eq("mentor_id", mentorId)
+      .order("start_time", { ascending: true });
 
     if (error) throw error;
 
@@ -129,14 +314,40 @@ export async function addAvailability(availability: Omit<Availability, "id">) {
   }
 }
 
+export async function deleteAvailability(availabilityId: string) {
+  try {
+    const { error } = await supabase
+      .from("availabilities")
+      .delete()
+      .eq("id", availabilityId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error("Error deleting availability:", error);
+    throw error;
+  }
+}
+
 // Session APIs
 export async function requestSession(
   session: Omit<
     Session,
-    "id" | "status" | "paymentStatus" | "notes" | "transcript"
+    | "id"
+    | "status"
+    | "paymentStatus"
+    | "notes"
+    | "transcript"
+    | "videoCallId"
+    | "videoCallStatus"
+    | "recordingUrl"
+    | "paymentAmount"
+    | "paymentMethod"
+    | "transactionId"
   >,
 ) {
   try {
+    // Start a transaction
     const { data, error } = await supabase
       .from("sessions")
       .insert({
@@ -219,22 +430,40 @@ export async function getUserSessions(
     const field = role === "mentor" ? "mentor_id" : "mentee_id";
     const { data, error } = await supabase
       .from("sessions")
-      .select("*")
-      .eq(field, userId);
+      .select(
+        `
+        *,
+        video_calls(*),
+        payments(*)
+      `,
+      )
+      .eq(field, userId)
+      .order("start_time", { ascending: false });
 
     if (error) throw error;
 
-    return data.map((session) => ({
-      id: session.id,
-      mentorId: session.mentor_id,
-      menteeId: session.mentee_id,
-      startTime: session.start_time,
-      endTime: session.end_time,
-      status: session.status,
-      paymentStatus: session.payment_status,
-      notes: session.notes,
-      transcript: session.transcript,
-    }));
+    return data.map((session) => {
+      const videoCall = session.video_calls?.[0] || {};
+      const payment = session.payments?.[0] || {};
+
+      return {
+        id: session.id,
+        mentorId: session.mentor_id,
+        menteeId: session.mentee_id,
+        startTime: session.start_time,
+        endTime: session.end_time,
+        status: session.status,
+        paymentStatus: session.payment_status,
+        notes: session.notes,
+        transcript: session.transcript,
+        videoCallId: videoCall.stream_call_id,
+        videoCallStatus: videoCall.status,
+        recordingUrl: videoCall.recording_url,
+        paymentAmount: payment.amount,
+        paymentMethod: payment.payment_method,
+        transactionId: payment.transaction_id,
+      };
+    });
   } catch (error) {
     console.error("Error getting user sessions:", error);
     throw error;
@@ -274,6 +503,96 @@ export async function updateSessionTranscript(
     return data;
   } catch (error) {
     console.error("Error updating session transcript:", error);
+    throw error;
+  }
+}
+
+// Payment APIs
+export async function createPayment(
+  sessionId: string,
+  amount: number,
+  paymentMethod: string,
+) {
+  try {
+    // Create payment record
+    const { data, error } = await supabase
+      .from("payments")
+      .insert({
+        session_id: sessionId,
+        amount,
+        payment_method: paymentMethod,
+        status: "completed",
+        transaction_id: `txn_${Date.now()}`,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Update session payment status
+    const { error: sessionError } = await supabase
+      .from("sessions")
+      .update({ payment_status: "completed" })
+      .eq("id", sessionId);
+
+    if (sessionError) throw sessionError;
+
+    return data;
+  } catch (error) {
+    console.error("Error creating payment:", error);
+    throw error;
+  }
+}
+
+// Video Call APIs
+export async function createVideoCall(sessionId: string, streamCallId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("video_calls")
+      .insert({
+        session_id: sessionId,
+        stream_call_id: streamCallId,
+        status: "pending",
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error("Error creating video call:", error);
+    throw error;
+  }
+}
+
+export async function updateVideoCallStatus(
+  videoCallId: string,
+  status: string,
+  recordingUrl?: string,
+) {
+  try {
+    const updateData: any = { status };
+    if (recordingUrl) {
+      updateData.recording_url = recordingUrl;
+    }
+
+    if (status === "started") {
+      updateData.started_at = new Date().toISOString();
+    } else if (status === "ended") {
+      updateData.ended_at = new Date().toISOString();
+    }
+
+    const { data, error } = await supabase
+      .from("video_calls")
+      .update(updateData)
+      .eq("id", videoCallId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error("Error updating video call status:", error);
     throw error;
   }
 }
